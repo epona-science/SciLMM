@@ -64,18 +64,15 @@ class Pedigree:
             names=["FID", "IID", "F_IID", "M_IID", "gender", "phenotype"],
         )
 
-        # Add family ID to individual's IIDs:
-        df["F_IID"][self.get_non_null_indices(df["F_IID"])] = (
-            df["FID"][self.get_non_null_indices(df["F_IID"])].map(str)
-            + "_"
-            + df["F_IID"][self.get_non_null_indices(df["F_IID"])]
-        )
-        df["M_IID"][self.get_non_null_indices(df["M_IID"])] = (
-            df["FID"][self.get_non_null_indices(df["M_IID"])].map(str)
-            + "_"
-            + df["M_IID"][self.get_non_null_indices(df["M_IID"])]
-        )
-        df["IID"] = df["FID"].map(str) + "_" + df["IID"]
+        df.loc[
+            self.get_non_null_indices(df["F_IID"]), ["F_IID"]
+        ] = df["FID"] + "_" + df["F_IID"]
+
+        df.loc[
+            self.get_non_null_indices(df["M_IID"]), ["M_IID"]
+        ] = df["FID"] + "_" + df["M_IID"]
+
+        df["IID"] = df["FID"] + "_" + df["IID"]
 
         self.family = df
 
@@ -127,10 +124,9 @@ class Pedigree:
         return self.entries
 
     def get_non_null_indices(self, series):
-        if self.null_value:
-            return series != self.null_value
-        else:
-            return ~series.isna()
+        if self.null_value: return series != self.null_value
+
+        return series.notna()
 
     def get_parent_child_edges(self, parent="father"):
         """
@@ -177,17 +173,22 @@ class Pedigree:
         Get a relationship csr matrix.
         :return: The pedigree based boolean csr matrix of the relationships.
         """
-        if self.relationship is None:
-            all_co = self.get_all_parent_child_edges()
-            assert len(all_co) > 0, IOError(
-                "There are no family connections in the database"
-            )
-            all_ids = np.array(list(self.get_entries().keys()))
-            self.relationship = csr_matrix(
-                (np.ones(all_co.shape[0]), (all_co[:, 0], all_co[:, 1])),
-                shape=(all_ids.size, all_ids.size),
-                dtype=np.bool,
-            )
+        if self.relationship is not None: return self.relationship
+
+        all_co = self.get_all_parent_child_edges()
+
+        assert len(all_co) > 0, IOError(
+            "There are no family connections in the database"
+        )
+
+        all_ids = np.array(list(self.get_entries().keys()))
+
+        self.relationship = csr_matrix(
+            (np.ones(all_co.shape[0]), (all_co[:, 0], all_co[:, 1])),
+            shape=(all_ids.size, all_ids.size),
+            dtype=np.bool,
+        )
+
         return self.relationship
 
     def get_sex(self):
