@@ -1,29 +1,34 @@
+"""scilmm.SparseCholesky
+"""
 import time
 
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
-import scipy.optimize as optimize
-import scipy.sparse
-import scipy.sparse as sparse
+from scipy import optimize
+from scipy import sparse
 from scipy.io import mmread
 from sksparse.cholmod import cholesky as sk_cholesky
 
 np.set_printoptions(precision=3, linewidth=200)
-pd.set_option('display.width', 200)
+pd.set_option("display.width", 200)
 
 
 class SparseCholesky(object):
-    def __init__(self, use_long=False, mode='supernodal', ordering_method='nesdis'):
+    def __init__(
+        self, use_long=False, mode="supernodal", ordering_method="nesdis"
+    ):
         self._use_long = use_long
         self._mode = mode
         self._ordering_method = ordering_method
 
     def __call__(self, sparse_mat):
-        return sk_cholesky(sparse_mat,
-                           use_long=self._use_long,
-                           mode=self._mode,
-                           ordering_method=self._ordering_method)
+        return sk_cholesky(
+            sparse_mat,
+            use_long=self._use_long,
+            mode=self._mode,
+            ordering_method=self._ordering_method,
+        )
 
 
 def estimate_fixed_effects(factor, y, covariates):
@@ -37,11 +42,13 @@ def estimate_fixed_effects(factor, y, covariates):
 def negative_log_likelihood(factor, y, invV_y, mu, L_CT_invV_C, reml):
     n = y.size
     nll_numer = (y - mu).dot(invV_y)
-    nll_denom = (n * np.log(2 * np.pi) + factor.logdet())
+    nll_denom = n * np.log(2 * np.pi) + factor.logdet()
     nll = 0.5 * (nll_numer + nll_denom)
 
     if reml:
-        nll += 0.5 * 2 * np.sum(np.log(np.diag(L_CT_invV_C[0])))  # ignoring some irrelevant constants
+        nll += (
+            0.5 * 2 * np.sum(np.log(np.diag(L_CT_invV_C[0])))
+        )  # ignoring some irrelevant constants
 
     return nll
 
@@ -59,12 +66,16 @@ def matrices_weighted_sum(mats, sig2g_array):
     return V.tocsc()
 
 
-def compute_gradients(sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C):
+def compute_gradients(
+    sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C
+):
     grad = np.zeros(len(sig2g_array))
     for grad_i in range(len(sig2g_array)):
         comp1 = np.mean(np.sum(mats[grad_i].dot(sim_vec) * sim_vec, axis=0))
         comp2 = invV_y.dot(mats[grad_i].dot(invV_y))
-        grad[grad_i] = 0.5 * (comp1 - comp2)  # this is the gradient of the *negative* log likelihood
+        grad[grad_i] = 0.5 * (
+            comp1 - comp2
+        )  # this is the gradient of the *negative* log likelihood
 
         if reml:
             vec = invV_C.T.dot(mats[grad_i].dot(invV_C))
@@ -74,8 +85,17 @@ def compute_gradients(sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_inv
     return grad
 
 
-def bolt_gradient_estimation(log_sig2g_array, cholesky_func, mats, covariates, y, reml, sim_num, verbose,
-                             take_exp=True):
+def bolt_gradient_estimation(
+    log_sig2g_array,
+    cholesky_func,
+    mats,
+    covariates,
+    y,
+    reml,
+    sim_num,
+    verbose,
+    take_exp=True,
+):
     if take_exp:
         sig2g_array = np.exp(log_sig2g_array)
     else:
@@ -83,7 +103,7 @@ def bolt_gradient_estimation(log_sig2g_array, cholesky_func, mats, covariates, y
 
     if verbose:
         t0 = time.time()
-        print('estimating nll and its gradient at:', sig2g_array)
+        print("estimating nll and its gradient at:", sig2g_array)
 
     V = matrices_weighted_sum(mats, sig2g_array)
     n = V.shape[0]
@@ -106,18 +126,32 @@ def bolt_gradient_estimation(log_sig2g_array, cholesky_func, mats, covariates, y
     sim_vec = simulate_vector(factor, n, sim_num, P_inv)
 
     # compute the gradient with respect to log_sig2g (instead of sig2g directly), using the chain rule
-    grad = compute_gradients(sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C)
+    grad = compute_gradients(
+        sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C
+    )
     if take_exp:
         grad *= sig2g_array
 
     if verbose:
         print("grad : ", grad)
-        print('nll: %0.8e   computation time: %0.2f seconds' % (nll, time.time() - t0))
+        print(
+            "nll: %0.8e   computation time: %0.2f seconds"
+            % (nll, time.time() - t0)
+        )
 
     return nll, grad
 
 
-def estimate_var_comps(cholesky_func, mats, covariates, y, reml=True, sim_num=100, verbose=True, aireml=False):
+def estimate_var_comps(
+    cholesky_func,
+    mats,
+    covariates,
+    y,
+    reml=True,
+    sim_num=100,
+    verbose=True,
+    aireml=False,
+):
     he_est = HE(mats[:-1], covariates, y, compute_stderr=False)
     he_est = np.concatenate((he_est, [1 - he_est.sum()]))
     x0 = he_est
@@ -127,17 +161,30 @@ def estimate_var_comps(cholesky_func, mats, covariates, y, reml=True, sim_num=10
 
     # AI-REML algorithm
     if aireml:
-        raise NotImplementedError('AI-REML is broken')
+        raise NotImplementedError("AI-REML is broken")
 
     # L-BFGS-B optimization
     else:
         log_x0 = np.log(x0)
-        optObj = optimize.minimize(bolt_gradient_estimation, log_x0,
-                                   args=(cholesky_func, mats, covariates, y, reml, sim_num, verbose, True),
-                                   jac=True, method='L-BFGS-B',
-                                   options={'eps': 1e-5, 'ftol': 1e-7})
+        optObj = optimize.minimize(
+            bolt_gradient_estimation,
+            log_x0,
+            args=(
+                cholesky_func,
+                mats,
+                covariates,
+                y,
+                reml,
+                sim_num,
+                verbose,
+                True,
+            ),
+            jac=True,
+            method="L-BFGS-B",
+            options={"eps": 1e-5, "ftol": 1e-7},
+        )
     if not optObj.success:
-        print('optimization failed with message: %s' % optObj.message)
+        print("optimization failed with message: %s" % optObj.message)
 
     mats_coefficients = np.exp(optObj.x)
 
@@ -151,7 +198,9 @@ def compute_hess(mats, covariates, factor, y):
 
     def P(z):
         Vinv_z = factor(z)
-        Pz = Vinv_z - Vinv_C.dot(la.cho_solve(L_CT_Vinv_C, covariates.T.dot(Vinv_z)))
+        Pz = Vinv_z - Vinv_C.dot(
+            la.cho_solve(L_CT_Vinv_C, covariates.T.dot(Vinv_z))
+        )
         return Pz
 
     Py = P(y)
@@ -174,22 +223,37 @@ def compute_varcomp_stderr(mats, covariates, factor, y, sim_num):
     return np.sqrt(np.diag(inv_neg_hess) * (1 + 1.0 / sim_num))
 
 
-def REML(cholesky_func, mats, covariates, y, reml=True, sim_num=100, verbose=False):
+def REML(
+    cholesky_func, mats, covariates, y, reml=True, sim_num=100, verbose=False
+):
     y = y / y.std()
     mats = mats + [scipy.sparse.eye(y.shape[0]).tocsr()]
-    varcomp_estimates = estimate_var_comps(cholesky_func, mats, covariates, y, reml, sim_num, verbose)
+    varcomp_estimates = estimate_var_comps(
+        cholesky_func, mats, covariates, y, reml, sim_num, verbose
+    )
     V = matrices_weighted_sum(mats, varcomp_estimates)
     factor = cholesky_func(V)
 
     _, _, _, fixed_effects = estimate_fixed_effects(factor, y, covariates)
 
     sigmas_sigmas = compute_varcomp_stderr(mats, covariates, factor, y, sim_num)
-    return {"covariance coefficients": varcomp_estimates,
-            "covariates coefficients": fixed_effects,
-            "covariance std": sigmas_sigmas}
+    return {
+        "covariance coefficients": varcomp_estimates,
+        "covariates coefficients": fixed_effects,
+        "covariance std": sigmas_sigmas,
+    }
 
 
-def HE(mat_list, cov, y, MQS=False, verbose=False, sim_num=100, compute_stderr=False, y2=None):
+def HE(
+    mat_list,
+    cov,
+    y,
+    MQS=False,
+    verbose=False,
+    sim_num=100,
+    compute_stderr=False,
+    y2=None,
+):
     # regress all covariates out of y
     CTC = cov.T.dot(cov)
     y = y - cov.dot(np.linalg.solve(CTC, cov.T.dot(y)))
@@ -198,18 +262,17 @@ def HE(mat_list, cov, y, MQS=False, verbose=False, sim_num=100, compute_stderr=F
     y /= y.std()
     # assert np.isclose(y.mean(), 0)
     # assert np.isclose(y.var(), 1)
-    
+
     if y2 is not None:
         y2 -= cov.dot(np.linalg.solve(CTC, cov.T.dot(y2)))
         y2 /= y2.std()
         y = np.concatenate((y, y2))
-        
+
         for m_i, m in enumerate(mat_list):
             z = sparse.csr_matrix((m.shape[0], m.shape[0]))
-            mz = sparse.hstack([m,z])
-            zm = sparse.hstack([z,m])
+            mz = sparse.hstack([m, z])
+            zm = sparse.hstack([z, m])
             mat_list[m_i] = sparse.vstack([zm, mz]).tocsr()
-            
 
     # construct S and q, without MQS
     K = len(mat_list)
@@ -224,22 +287,30 @@ def HE(mat_list, cov, y, MQS=False, verbose=False, sim_num=100, compute_stderr=F
             else:
                 q[i] = ((mat_i * y).T.dot(y)).sum() - np.diag(mat_i).dot(y ** 2)
             for j, mat_j in enumerate(mat_list):
-                if j > i: continue
+                if j > i:
+                    continue
                 if scipy.sparse.issparse(mat_i):
-                    S[i, j] = (mat_i.multiply(mat_j)).sum() - mat_i.diagonal().dot(mat_j.diagonal())
+                    S[i, j] = (
+                        mat_i.multiply(mat_j)
+                    ).sum() - mat_i.diagonal().dot(mat_j.diagonal())
                 else:
-                    S[i, j] = np.einsum('ij,ij->', mat_i, mat_j) - np.diag(mat_i).dot(np.diag(mat_j))
+                    S[i, j] = np.einsum("ij,ij->", mat_i, mat_j) - np.diag(
+                        mat_i
+                    ).dot(np.diag(mat_j))
                 S[j, i] = S[i, j]
 
     # construct S and q with MQS (it's almost the same thing...)
-    else:        
+    else:
         q = np.zeros(K)
         S = np.zeros((K, K))
         for i, mat_i in enumerate(mat_list):
-            q[i] = (y.dot(mat_i.dot(y)) - y.dot(y))  # / float(n-1)**2
+            q[i] = y.dot(mat_i.dot(y)) - y.dot(y)  # / float(n-1)**2
             for j, mat_j in enumerate(mat_list):
-                if j > i: continue
-                S[i, j] = ((mat_i.multiply(mat_j)).sum() - (n - 1))  # / float(n-1)**2
+                if j > i:
+                    continue
+                S[i, j] = (mat_i.multiply(mat_j)).sum() - (
+                    n - 1
+                )  # / float(n-1)**2
                 S[j, i] = S[i, j]
 
     # compute HE
@@ -252,20 +323,22 @@ def HE(mat_list, cov, y, MQS=False, verbose=False, sim_num=100, compute_stderr=F
     H = mat_list[0] * he_est[0]
     for mat_i, sigma2_i in zip(mat_list[1:], he_est[1:]):
         H += mat_i * he_est[i]
-    H += scipy.sparse.eye(y.shape[0], format='csr') * (1.0 - he_est.sum())
+    H += scipy.sparse.eye(y.shape[0], format="csr") * (1.0 - he_est.sum())
 
     # compute HE sampling variance
     V_q = np.empty((K, K))
     for i, mat_i in enumerate(mat_list):
         if sim_num is None:
             HAi_min_I = H.dot(mat_i) - H
-        for j, mat_i in enumerate(mat_list[:i + 1]):
+        for j, mat_i in enumerate(mat_list[: i + 1]):
             if sim_num is None:
                 if j == i:
                     HAj_min_I = HAi_min_I
                 else:
                     HAj_min_I = H.dot(mat_j) - H
-                V_q[i, j] = 2 * (HAi_min_I.multiply(HAj_min_I)).sum()  # / float(n-1)**4
+                V_q[i, j] = (
+                    2 * (HAi_min_I.multiply(HAj_min_I)).sum()
+                )  # / float(n-1)**4
             else:
                 # simulate vectors
                 sim_y = np.random.randn(n, sim_num)
@@ -273,7 +346,9 @@ def HE(mat_list, cov, y, MQS=False, verbose=False, sim_num=100, compute_stderr=F
                 H_Aj_minI_y = H.dot(Aj_minI_y)
                 Ai_min_I_H_Aj_minI_y = mat_i.dot(H_Aj_minI_y) - H_Aj_minI_y
                 H_Ai_min_I_H_Aj_minI_y = H.dot(Ai_min_I_H_Aj_minI_y)
-                V_q[i, j] = 2 * np.mean(np.einsum('ij,ij->j', sim_y, H_Ai_min_I_H_Aj_minI_y))
+                V_q[i, j] = 2 * np.mean(
+                    np.einsum("ij,ij->j", sim_y, H_Ai_min_I_H_Aj_minI_y)
+                )
 
             V_q[j, i] = V_q[i, j]
     var_he_est = np.linalg.solve(S, np.linalg.solve(S, V_q).T).T
@@ -281,7 +356,16 @@ def HE(mat_list, cov, y, MQS=False, verbose=False, sim_num=100, compute_stderr=F
     return he_est, np.sqrt(np.diag(var_he_est))
 
 
-def MINQUE(cholesky_func, mat_list, cov, y, compute_stderr=False, verbose=False, num_iter=100, sim_num=100):
+def MINQUE(
+    cholesky_func,
+    mat_list,
+    cov,
+    y,
+    compute_stderr=False,
+    verbose=False,
+    num_iter=100,
+    sim_num=100,
+):
     # regress all covariates out of y
     CTC = cov.T.dot(cov)
     y = y - cov.dot(np.linalg.solve(CTC, cov.T.dot(y)))
@@ -317,12 +401,15 @@ def MINQUE(cholesky_func, mat_list, cov, y, compute_stderr=False, verbose=False,
 
             # construct S_ij
             for j, mat_j in enumerate(mat_list):
-                if (j > i): continue
+                if j > i:
+                    continue
                 if H is None:
                     S[i, j] = (mat_i.multiply(mat_j)).sum() - (n - 1)
                 else:
                     Kj_invH_Ki_invH_simy = mat_j.dot(invH_Ki_invH_simy)
-                    S[i, j] = np.mean(np.einsum('ij,ij->j', invH_simy, Kj_invH_Ki_invH_simy)) - (n - 1)
+                    S[i, j] = np.mean(
+                        np.einsum("ij,ij->j", invH_simy, Kj_invH_Ki_invH_simy)
+                    ) - (n - 1)
                 S[j, i] = S[i, j]
 
         # compute minque_est
@@ -333,7 +420,9 @@ def MINQUE(cholesky_func, mat_list, cov, y, compute_stderr=False, verbose=False,
         H = mat_list[0] * minque_est[0]
         for mat_i, sigma2_i in zip(mat_list[1:], minque_est[1:]):
             H += mat_i * minque_est[i]
-        H += scipy.sparse.eye(y.shape[0], format='csr') * (1.0 - minque_est.sum())
+        H += scipy.sparse.eye(y.shape[0], format="csr") * (
+            1.0 - minque_est.sum()
+        )
 
     # compute MINQUE
     minque_est = np.linalg.solve(S, q)
@@ -347,7 +436,9 @@ def MINQUE(cholesky_func, mat_list, cov, y, compute_stderr=False, verbose=False,
     return minque_est, np.sqrt(var_he_est)
 
 
-def run_estimates(A, df_phe, df_cov, reml=False, ignore_indices=False, df_phe2=None):
+def run_estimates(
+    A, df_phe, df_cov, reml=False, ignore_indices=False, df_phe2=None
+):
     # Sort shared indices between matrices:
     if not ignore_indices:
         indices = list(set(df_cov.index) & set(df_phe.index) & set(A.indices))
@@ -374,13 +465,11 @@ def run_estimates(A, df_phe, df_cov, reml=False, ignore_indices=False, df_phe2=N
         assert not reml
     else:
         y2 = None
-        
-    
 
     # standardize covariates (for numerical stability)
     if type(df_cov) == pd.Series:
         df_cov = df_cov.to_frame()
-    df_cov['intercept'] = 1
+    df_cov["intercept"] = 1
     cov = df_cov.values.copy().astype(np.float)
     cov[:, :-1] -= cov[:, :-1].mean(axis=0)
     cov[:, :-1] /= cov[:, :-1].std(axis=0)
@@ -403,28 +492,45 @@ def run_estimates_from_paths(A, phe, cov, reml=False, ignore_indices=False):
     run_estimates(A, df_phe, df_cov, reml=reml, ignore_indices=ignore_indices)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--A', required=True,
-                        help="Absolute path of the covariance matrix A. This matrix should be saved as an mmatrix.")
-    parser.add_argument('--phe', required=True,
-                        help="Absolute path of phenotype CSV file with no header."
-                             " This file should consist of two columns: IID and Phenotype."
-                             " In case of 'ignore_indices'=True there should only be one column of phenotype.")
-    parser.add_argument('--cov', required=True,
-                        help="Absolute path of covariates CSV file with a header."
-                             " This file should contain all covariates that "
-                             "should be taken into account in calculation."
-                             " Notice that the first column should be the IID, unless the 'ignore_indices'"
-                             " flag is given at which case the column should not appear.")
-    parser.add_argument('--reml', default=False, action='store_true',
-                        help="Compute using REML, default case uses the HE estimation method.")
-    parser.add_argument('--ignore_indices', default=False, action='store_true',
-                        help="Ignore indices of individuals."
-                             " This assumes that the A matrix, phenotype matrix and "
-                             "covariates matrix are all ordered in the same order of individuals.")
+    parser.add_argument(
+        "--A",
+        required=True,
+        help="Absolute path of the covariance matrix A. This matrix should be saved as an mmatrix.",
+    )
+    parser.add_argument(
+        "--phe",
+        required=True,
+        help="Absolute path of phenotype CSV file with no header."
+        " This file should consist of two columns: IID and Phenotype."
+        " In case of 'ignore_indices'=True there should only be one column of phenotype.",
+    )
+    parser.add_argument(
+        "--cov",
+        required=True,
+        help="Absolute path of covariates CSV file with a header."
+        " This file should contain all covariates that "
+        "should be taken into account in calculation."
+        " Notice that the first column should be the IID, unless the 'ignore_indices'"
+        " flag is given at which case the column should not appear.",
+    )
+    parser.add_argument(
+        "--reml",
+        default=False,
+        action="store_true",
+        help="Compute using REML, default case uses the HE estimation method.",
+    )
+    parser.add_argument(
+        "--ignore_indices",
+        default=False,
+        action="store_true",
+        help="Ignore indices of individuals."
+        " This assumes that the A matrix, phenotype matrix and "
+        "covariates matrix are all ordered in the same order of individuals.",
+    )
     args = parser.parse_args()
 
     run_estimates_from_paths(**(args.__dict__))

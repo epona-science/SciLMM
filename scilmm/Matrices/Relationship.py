@@ -18,16 +18,43 @@ def topo_sort(rel, remove_cycles=False, check_num_parents=False):
         cycle_iids = nx.algorithms.cycles.recursive_simple_cycles(graph)
         if len(cycle_iids) > 0:
             edges_to_remove = list(
-                map(lambda cyc: list(map(lambda i: (cyc[i], cyc[(i + 1) % len(cyc)]), range(len(cyc)))), cycle_iids))
+                map(
+                    lambda cyc: list(
+                        map(
+                            lambda i: (cyc[i], cyc[(i + 1) % len(cyc)]),
+                            range(len(cyc)),
+                        )
+                    ),
+                    cycle_iids,
+                )
+            )
             edges_to_remove = list(chain.from_iterable(edges_to_remove))
             graph.remove_edges_from(edges_to_remove)
             graph.remove_nodes_from(list(nx.isolates(graph)))
     if check_num_parents:
-        nodes_with_access_parents = list(map(lambda x: x[0], (filter(lambda x: x[1] > 2, graph.out_degree()))))
+        nodes_with_access_parents = list(
+            map(
+                lambda x: x[0], (filter(lambda x: x[1] > 2, graph.out_degree()))
+            )
+        )
         if len(nodes_with_access_parents) > 0:
-            edges_to_remove = np.vstack(np.array(list(
-                map(lambda child: np.array(list(map(lambda succ: (child, succ), list(graph.successors(child))))),
-                    nodes_with_access_parents))))
+            edges_to_remove = np.vstack(
+                np.array(
+                    list(
+                        map(
+                            lambda child: np.array(
+                                list(
+                                    map(
+                                        lambda succ: (child, succ),
+                                        list(graph.successors(child)),
+                                    )
+                                )
+                            ),
+                            nodes_with_access_parents,
+                        )
+                    )
+                )
+            )
             graph.remove_edges_from(edges_to_remove)
             graph.remove_nodes_from(list(nx.isolates(graph)))
     # TODO: consider having a list of elements to remove and only remove them after checking for violations.
@@ -63,8 +90,9 @@ def count_IBD_nonzero(rel):
 
 def get_only_relevant_indices(rel, subset):
     AM = get_ancestor_matrix(rel)
-    with_ancestors = np.unique(np.concatenate((subset,
-                                               AM[subset].nonzero()[1])))
+    with_ancestors = np.unique(
+        np.concatenate((subset, AM[subset].nonzero()[1]))
+    )
 
     # remove individuals that are not subset or ancestors to subset
     sub_rel = rel[with_ancestors][:, with_ancestors]
@@ -74,21 +102,33 @@ def get_only_relevant_indices(rel, subset):
     only_subset = np.in1d(with_ancestors, subset)
     sub_CAM = get_CAM(sub_AM)
     valid_nonsubset = sub_CAM[only_subset][:, ~only_subset].sum(axis=0).A1 > 1
-    valid_nonsubset_indices = with_ancestors[np.where(~only_subset)[0][valid_nonsubset]]
-    relevant_subset = np.unique(np.concatenate((subset, valid_nonsubset_indices)))
+    valid_nonsubset_indices = with_ancestors[
+        np.where(~only_subset)[0][valid_nonsubset]
+    ]
+    relevant_subset = np.unique(
+        np.concatenate((subset, valid_nonsubset_indices))
+    )
     return relevant_subset, np.searchsorted(relevant_subset, subset)
 
 
 # indices should be sorted
-def organize_rel(rel, subset=None, remove_cycles=False, check_num_parents=False):
-    rel, topo_order = topo_sort(rel, remove_cycles=remove_cycles, check_num_parents=check_num_parents)
+def organize_rel(
+    rel, subset=None, remove_cycles=False, check_num_parents=False
+):
+    rel, topo_order = topo_sort(
+        rel, remove_cycles=remove_cycles, check_num_parents=check_num_parents
+    )
     topo_order_argsort = np.argsort(topo_order)
     if subset is not None:
         # TODO: check this again. do it with unique ids
         subset_in_topo_order = topo_order_argsort[subset]
-        relevant_subset, subset_in_relevant_subset = \
-            get_only_relevant_indices(rel, subset_in_topo_order)
-        return rel[relevant_subset][:, relevant_subset], subset_in_relevant_subset
+        relevant_subset, subset_in_relevant_subset = get_only_relevant_indices(
+            rel, subset_in_topo_order
+        )
+        return (
+            rel[relevant_subset][:, relevant_subset],
+            subset_in_relevant_subset,
+        )
     return rel, topo_order
 
 
@@ -107,17 +147,25 @@ if __name__ == "__main__":
     rev_subset = np.array([4, 3])
     relevant_rel, subset_indices = organize_rel(rev_rel, rev_subset)
 
-    sub_ibd1 = simple_numerator(relevant_rel)[0][subset_indices][:, subset_indices]
+    sub_ibd1 = simple_numerator(relevant_rel)[0][subset_indices][
+        :, subset_indices
+    ]
 
     relevant_rel, subset_indices = organize_rel(rel, subset)
-    sub_ibd2 = simple_numerator(relevant_rel)[0][subset_indices][:, subset_indices]
+    sub_ibd2 = simple_numerator(relevant_rel)[0][subset_indices][
+        :, subset_indices
+    ]
 
     rel, _, _ = simulate_tree(10000, 0.001, 1.4, 0.9)
-    subset = np.sort(np.random.choice(np.arange(10000), size=500, replace=False))
+    subset = np.sort(
+        np.random.choice(np.arange(10000), size=500, replace=False)
+    )
 
     relevant_subset, _ = get_only_relevant_indices(rel, subset)
 
-    relevant_ibd, _, _ = simple_numerator(rel[relevant_subset][:, relevant_subset])
+    relevant_ibd, _, _ = simple_numerator(
+        rel[relevant_subset][:, relevant_subset]
+    )
     subset_inside_relevant = np.in1d(relevant_subset, subset)
     ibd1 = relevant_ibd[subset_inside_relevant][:, subset_inside_relevant]
 
@@ -139,10 +187,13 @@ if __name__ == "__main__":
     assert (sub_rel1 - sub_rel2).nnz == 0
 
     sub_ibd1 = simple_numerator(rel)[0][subset][:, subset]
-    sub_ibd2 = simple_numerator(shf_relevant_rel)[0][shf_subset_indices][:, shf_subset_indices]
+    sub_ibd2 = simple_numerator(shf_relevant_rel)[0][shf_subset_indices][
+        :, shf_subset_indices
+    ]
 
-    sub_ibd3 = simple_numerator(organize_rel(rel, subset)[0])[0][organize_rel(rel, subset)[1]][:,
-               organize_rel(rel, subset)[1]]
+    sub_ibd3 = simple_numerator(organize_rel(rel, subset)[0])[0][
+        organize_rel(rel, subset)[1]
+    ][:, organize_rel(rel, subset)[1]]
 
     assert (sub_ibd1 - sub_ibd3).nnz == 0
 

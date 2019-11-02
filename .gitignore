@@ -1,6 +1,48 @@
-*.pyc
+# Virtual environments
+venv/
+
+# Byte-compiled / optimized /DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Log files
+*.log
+
+# Distribution / packaging
+build/
+dist/
+develop-eggs/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+
+# DotEnv configuration
+.env
+
+# Sphinx documentation
+docs/build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# tests / coverage reports
+.cache
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*,cover
+
+# exclude data from source control by default
+data/
 *.npy
 *.npz
 *.fam
 .idea*
-.pytest_cache*
+
+# R files
+.Rhistory

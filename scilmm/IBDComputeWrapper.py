@@ -2,43 +2,87 @@ import argparse
 
 
 def ibd_compute_parse_arguments():
-    parser = argparse.ArgumentParser(description='scilmm')
+    parser = argparse.ArgumentParser(description="scilmm")
 
     # General Parameters:
-    parser.add_argument('--output_folder', dest='output_folder', type=str, default='.',
-                        help='which folder it should save the output to.')
+    parser.add_argument(
+        "--output_folder",
+        dest="output_folder",
+        type=str,
+        default=".",
+        help="which folder it should save the output to.",
+    )
 
     # Pedigree Simulation:
-    parser.add_argument('--simulate', dest='simulate', action='store_true', default=False,
-                        help='Run simulations')
+    parser.add_argument(
+        "--simulate",
+        dest="simulate",
+        action="store_true",
+        default=False,
+        help="Run simulations",
+    )
 
-    parser.add_argument('--sample_size', dest='sample_size', type=int, default=100000,
-                        help='Size of the cohort')
+    parser.add_argument(
+        "--sample_size",
+        dest="sample_size",
+        type=int,
+        default=100000,
+        help="Size of the cohort",
+    )
 
-    parser.add_argument('--sparsity_factor', dest='sparsity_factor', type=float, default=0.001,
-                        help='Number of nonzero entries in the IBD matrix')
+    parser.add_argument(
+        "--sparsity_factor",
+        dest="sparsity_factor",
+        type=float,
+        default=0.001,
+        help="Number of nonzero entries in the IBD matrix",
+    )
 
-    parser.add_argument('--gen_exp', dest='gen_exp', type=float, default=1.4,
-                        help='Gen size = gen_exp X prev gen size')
+    parser.add_argument(
+        "--gen_exp",
+        dest="gen_exp",
+        type=float,
+        default=1.4,
+        help="Gen size = gen_exp X prev gen size",
+    )
 
-    parser.add_argument('--init_keep_rate', dest='init_keep_rate', type=float, default=0.8,
-                        help='1 - number of edges to remove before iteration begins')
-
+    parser.add_argument(
+        "--init_keep_rate",
+        dest="init_keep_rate",
+        type=float,
+        default=0.8,
+        help="1 - number of edges to remove before iteration begins",
+    )
 
     # IBD Computing matrix:
-    parser.add_argument('--fam', dest='fam', type=str, default=None,
-                        help='.fam file representing the pedigree. ' +
-                             'the phenotype column contains all 0 if everyone is of interest, ' +
-                             'or if only a subset is of interest their phenotype will contain 1')
+    parser.add_argument(
+        "--fam",
+        dest="fam",
+        type=str,
+        default=None,
+        help=".fam file representing the pedigree. "
+        + "the phenotype column contains all 0 if everyone is of interest, "
+        + "or if only a subset is of interest their phenotype will contain 1",
+    )
 
-    parser.add_argument('--remove_cycles', dest='remove_cycles', action='store_true', default=False,
-                        help='Remove cycles from relationship matrix.' +
-                             'WARNING: there should no be any cycles. All nodes in cycles will be removed.')
+    parser.add_argument(
+        "--remove_cycles",
+        dest="remove_cycles",
+        action="store_true",
+        default=False,
+        help="Remove cycles from relationship matrix."
+        + "WARNING: there should no be any cycles. All nodes in cycles will be removed.",
+    )
 
-    parser.add_argument('--remove_access_parents', dest='check_num_parents', action='store_true', default=False,
-                        help='Remove relations of nodes with too many parents.' +
-                             'WARNING: All individuals should have no more than 2 parents.' +
-                             'Access edges will be removed, not nodes.')
+    parser.add_argument(
+        "--remove_access_parents",
+        dest="check_num_parents",
+        action="store_true",
+        default=False,
+        help="Remove relations of nodes with too many parents."
+        + "WARNING: All individuals should have no more than 2 parents."
+        + "Access edges will be removed, not nodes.",
+    )
     #
     # parser.add_argument('--IBD', dest='ibd', action='store_true', default=False,
     #                     help='Create IBD matrix')
@@ -78,7 +122,6 @@ def ibd_compute_parse_arguments():
     #
     # parser.add_argument('--verbose', dest='verbose', action='store_true', default=False,
     #                     help='prints more information along the run.')
-
 
     args = parser.parse_args()
 

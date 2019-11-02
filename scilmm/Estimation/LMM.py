@@ -12,16 +12,20 @@ np.set_printoptions(precision=4, linewidth=200)
 
 
 class SparseCholesky(object):
-    def __init__(self, use_long=False, mode='supernodal', ordering_method='nesdis'):
+    def __init__(
+        self, use_long=False, mode="supernodal", ordering_method="nesdis"
+    ):
         self._use_long = use_long
         self._mode = mode
         self._ordering_method = ordering_method
 
     def __call__(self, sparse_mat):
-        return sk_choleksy(sparse_mat,
-                           use_long=self._use_long,
-                           mode=self._mode,
-                           ordering_method=self._ordering_method)
+        return sk_choleksy(
+            sparse_mat,
+            use_long=self._use_long,
+            mode=self._mode,
+            ordering_method=self._ordering_method,
+        )
 
 
 def compute_fixed_effects(factor, y, covariates):
@@ -35,11 +39,13 @@ def compute_fixed_effects(factor, y, covariates):
 def negative_log_likelihood(factor, y, invV_y, mu, L_CT_invV_C, reml):
     n = y.size
     nll_numer = (y - mu).dot(invV_y)
-    nll_denom = (n * np.log(2 * np.pi) + factor.logdet())
+    nll_denom = n * np.log(2 * np.pi) + factor.logdet()
     nll = 0.5 * (nll_numer + nll_denom)
 
     if reml:
-        nll += 0.5 * 2 * np.sum(np.log(np.diag(L_CT_invV_C[0])))  # ignoring some irrelevant constants
+        nll += (
+            0.5 * 2 * np.sum(np.log(np.diag(L_CT_invV_C[0])))
+        )  # ignoring some irrelevant constants
 
     return nll
 
@@ -57,12 +63,16 @@ def matrices_weighted_sum(mats, sig2g_array):
     return V.tocsc()
 
 
-def compute_gradients(sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C):
+def compute_gradients(
+    sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C
+):
     grad = np.zeros(len(sig2g_array))
     for grad_i in range(len(sig2g_array)):
         comp1 = np.mean(np.sum(mats[grad_i].dot(sim_vec) * sim_vec, axis=0))
         comp2 = invV_y.dot(mats[grad_i].dot(invV_y))
-        grad[grad_i] = 0.5 * (comp1 - comp2)  # this is the gradient of the *negative* log likelihood
+        grad[grad_i] = 0.5 * (
+            comp1 - comp2
+        )  # this is the gradient of the *negative* log likelihood
 
         if reml:
             vec = invV_C.T.dot(mats[grad_i].dot(invV_C))
@@ -72,12 +82,14 @@ def compute_gradients(sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_inv
     return grad
 
 
-def bolt_gradient_estimation(log_sig2g_array, cholesky, mats, covariates, y, reml, sim_num, verbose):
+def bolt_gradient_estimation(
+    log_sig2g_array, cholesky, mats, covariates, y, reml, sim_num, verbose
+):
     sig2g_array = np.exp(log_sig2g_array)
 
     if verbose:
         t0 = time.time()
-        print('estimating nll and its gradient at:', sig2g_array)
+        print("estimating nll and its gradient at:", sig2g_array)
 
     V = matrices_weighted_sum(mats, sig2g_array)
     n = V.shape[0]
@@ -100,26 +112,37 @@ def bolt_gradient_estimation(log_sig2g_array, cholesky, mats, covariates, y, rem
     sim_vec = simulate_vector(factor, n, sim_num, p_inv)
 
     # compute the gradient with respect to log_sig2g (instead of sig2g directly), using the chain rule
-    grad = compute_gradients(sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C)
+    grad = compute_gradients(
+        sig2g_array, mats, sim_vec, invV_y, reml, invV_C, L_CT_invV_C
+    )
     grad *= sig2g_array
 
     if verbose:
         print("grad : ", grad)
-        print('nll: %0.8e   computation time: %0.2f seconds' % (nll, time.time() - t0))
+        print(
+            "nll: %0.8e   computation time: %0.2f seconds"
+            % (nll, time.time() - t0)
+        )
 
     return nll, grad
 
 
-def compute_sigmas(cholesky, mats, covariates, y, reml=True, sim_num=100, verbose=True):
+def compute_sigmas(
+    cholesky, mats, covariates, y, reml=True, sim_num=100, verbose=True
+):
     # randomly choose a valid starting point
     x0 = np.ones((len(mats)))  # = np.random.random(len(mats));
     x0 = np.log(x0 / x0.sum())
 
     # minimize the likelihood (REML or not)
-    optObj_bfgs = optimize.minimize(bolt_gradient_estimation, x0,
-                                    args=(cholesky, mats, covariates, y, reml, sim_num, verbose),
-                                    jac=True, method='L-BFGS-B',
-                                    options={'eps': 1e-5, 'ftol': 1e-7})
+    optObj_bfgs = optimize.minimize(
+        bolt_gradient_estimation,
+        x0,
+        args=(cholesky, mats, covariates, y, reml, sim_num, verbose),
+        jac=True,
+        method="L-BFGS-B",
+        options={"eps": 1e-5, "ftol": 1e-7},
+    )
 
     mats_coefficients = np.exp(optObj_bfgs.x)
 
@@ -148,25 +171,46 @@ def compute_sig_of_sig(mats, covariates, factor, y, sim_num):
         hess[j, i] = hess[i, j]
 
     inv_neg_hess = la.inv(-hess)
-    return np.sqrt((inv_neg_hess * (1 + 1.0 / sim_num))[range(num_matrices), range(num_matrices)])
+    return np.sqrt(
+        (inv_neg_hess * (1 + 1.0 / sim_num))[
+            range(num_matrices), range(num_matrices)
+        ]
+    )
 
 
-def LMM(cholesky, mats, covariates, y, with_intercept=True, reml=True, sim_num=100, verbose=False):
+def LMM(
+    cholesky,
+    mats,
+    covariates,
+    y,
+    with_intercept=True,
+    reml=True,
+    sim_num=100,
+    verbose=False,
+):
     mats = mats + [eye(y.size).tocsr()]
     if with_intercept:
         covariates = np.hstack((np.ones((y.size, 1)), covariates))
-    mats_coefficients = compute_sigmas(cholesky, mats, covariates, y, reml, sim_num, verbose)
+    mats_coefficients = compute_sigmas(
+        cholesky, mats, covariates, y, reml, sim_num, verbose
+    )
     V = matrices_weighted_sum(mats, mats_coefficients)
     factor = cholesky(V)
 
-    _, L_CT_invV_C, _, fixed_effects = compute_fixed_effects(factor, y, covariates)
-    fixed_effects_p_values = compute_fixed_effects_p_value(y, covariates, fixed_effects, L_CT_invV_C)
+    _, L_CT_invV_C, _, fixed_effects = compute_fixed_effects(
+        factor, y, covariates
+    )
+    fixed_effects_p_values = compute_fixed_effects_p_value(
+        y, covariates, fixed_effects, L_CT_invV_C
+    )
 
     sigmas_sigmas = compute_sig_of_sig(mats, covariates, factor, y, sim_num)
-    return {"covariance coefficients": mats_coefficients,
-            "covariates coefficients": fixed_effects,
-            "covariance std": sigmas_sigmas,
-            "covariates p-values": fixed_effects_p_values}
+    return {
+        "covariance coefficients": mats_coefficients,
+        "covariates coefficients": fixed_effects,
+        "covariance std": sigmas_sigmas,
+        "covariates p-values": fixed_effects_p_values,
+    }
 
 
 if __name__ == "__main__":
@@ -181,9 +225,11 @@ if __name__ == "__main__":
     epis = pairwise_epistasis(ibd)
     dom = dominance(rel, ibd)
     cov = np.random.randn(50000, 2)
-    y = simulate_phenotype([ibd, epis, dom],
-                           cov,
-                           np.array([0.3, 0.2, 0.1, 0.4]),
-                           np.array([0.01, 0.02, 0.03]),
-                           True)
+    y = simulate_phenotype(
+        [ibd, epis, dom],
+        cov,
+        np.array([0.3, 0.2, 0.1, 0.4]),
+        np.array([0.01, 0.02, 0.03]),
+        True,
+    )
     print(LMM(SparseCholesky(), [ibd, epis, dom], cov, y))
