@@ -12,6 +12,7 @@ class Pedigree:
         delimiter=" ",
         null_value="0",
         female_value="2",
+        phenotype_of_interest_value=None,
         check_num_parents=True,
         remove_cycles=True,
         **kwargs
@@ -31,6 +32,7 @@ class Pedigree:
         self.delimiter = delimiter
         self.null_value = null_value
         self.female_value = female_value
+        self.phenotype_of_interest_value = phenotype_of_interest_value
         self.family = pedigree
         self.entries = None
         self.entries_dict = None
@@ -79,6 +81,7 @@ class Pedigree:
     def get_entries(self):
         """
         Get an iid to index dictionary.
+
         :return: A dictionary from IIDs to indices in pedigree
         """
         assert (
@@ -86,41 +89,14 @@ class Pedigree:
         ), "A pedigree instance must be loaded use .load_pedigree"
 
         if self.entries is None:
-            if "FID" in self.family.columns:
-                self.entries = {
-                    iid: i
-                    for i, iid in enumerate(
-                        [
-                            x
-                            for x in np.unique(
-                                np.concatenate(
-                                    self.family[
-                                        ["IID", "F_IID", "M_IID"]
-                                    ].values
-                                )
-                            )
-                            if "_" in x
-                        ]
-                    )
-                }
-            else:
-                self.entries = {
-                    iid: i
-                    for i, iid in enumerate(
-                        [
-                            x
-                            for x in np.unique(
-                                np.concatenate(
-                                    self.family[
-                                        ["IID", "F_IID", "M_IID"]
-                                    ].values
-                                )
-                            )
-                            if x
-                        ]
-                    )
-                }
-            self.entries_dict = {i: iid for iid, i in self.entries.items()}
+            # Get unique array of all non-null IID, F_IID, and M_IID
+            all_ids = np.concatenate(self.family[["IID", "F_IID", "M_IID"]].values)
+            all_ids = np.unique(all_ids[all_ids != self.null_value])
+
+            # Create mapping dictionaries
+            self.entries_dict = dict(enumerate(all_ids))
+            self.entries = { iid: i for i, iid in self.entries_dict.items() }
+
         return self.entries
 
     def get_non_null_indices(self, series):
@@ -138,6 +114,7 @@ class Pedigree:
             "father",
             "mother",
         ], "Parent must be either 'father' or 'mother'"
+
         if not hasattr(self, "child_" + parent):
             self.get_entries()
             self.__dict__["child_" + parent] = np.array(
@@ -202,10 +179,11 @@ class Pedigree:
 
         if self.sex is None:
             self.sex = self.family["gender"] == self.female_value
+
         return self.sex
 
     def get_individuals_of_interest(
-        self, phenotype_of_interest="phenotype", phenotype_of_interest_value="1"
+        self, phenotype_of_interest="phenotype", phenotype_of_interest_value=None
     ):
         """
         Returns the indices of individuals of interest.
@@ -219,30 +197,26 @@ class Pedigree:
             self.family is not None
         ), "A pedigree instance must be loaded use .load_pedigree"
 
+        phenotype_of_interest_value = phenotype_of_interest_value or self.phenotype_of_interest_value
+
         if phenotype_of_interest in self.family.columns:
+
             if phenotype_of_interest_value:
-                self.interest = np.array(
-                    [
-                        self.get_entries()[entry_id]
-                        for entry_id in self.family[
-                            self.family["phenotype"]
-                            == phenotype_of_interest_value
-                        ]["IID"]
-                    ]
-                )
+                selected = self.family[phenotype_of_interest] == phenotype_of_interest_value
             else:
-                self.interest = np.array(
-                    [
-                        self.get_entries()[entry_id]
-                        for entry_id in self.family[
-                            ~self.family["phenotype"].isna()
-                        ]["IID"]
-                    ]
-                )
+                selected = self.get_non_null_indices(self.family[phenotype_of_interest])
+
+            self.interest = self.family.loc[selected, "IID"].map(
+                self.get_entries()
+            ).to_numpy(dtype=np.int)
+
         else:
+
             self.interest = np.array([])
+
         if self.interest.size == 0:
             self.interest = None
+
         return self.interest
 
     def compute_all_values(self):
