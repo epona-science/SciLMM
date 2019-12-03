@@ -227,7 +227,7 @@ def REML(
     cholesky_func, mats, covariates, y, reml=True, sim_num=100, verbose=False
 ):
     y = y / y.std()
-    mats = mats + [scipy.sparse.eye(y.shape[0]).tocsr()]
+    mats = mats + [sparse.eye(y.shape[0]).tocsr()]
     varcomp_estimates = estimate_var_comps(
         cholesky_func, mats, covariates, y, reml, sim_num, verbose
     )
@@ -281,7 +281,7 @@ def HE(
         q = np.zeros(K)
         S = np.zeros((K, K))
         for i, mat_i in enumerate(mat_list):
-            if scipy.sparse.issparse(mat_i):
+            if sparse.issparse(mat_i):
                 # q[i] = ((mat_i.multiply(y)).T.tocsr().dot(y)).sum() - mat_i.diagonal().dot(y**2)
                 q[i] = y.dot(mat_i.dot(y)) - mat_i.diagonal().dot(y ** 2)
             else:
@@ -289,7 +289,7 @@ def HE(
             for j, mat_j in enumerate(mat_list):
                 if j > i:
                     continue
-                if scipy.sparse.issparse(mat_i):
+                if sparse.issparse(mat_i):
                     S[i, j] = (
                         mat_i.multiply(mat_j)
                     ).sum() - mat_i.diagonal().dot(mat_j.diagonal())
@@ -323,7 +323,7 @@ def HE(
     H = mat_list[0] * he_est[0]
     for mat_i, sigma2_i in zip(mat_list[1:], he_est[1:]):
         H += mat_i * he_est[i]
-    H += scipy.sparse.eye(y.shape[0], format="csr") * (1.0 - he_est.sum())
+    H += sparse.eye(y.shape[0], format="csr") * (1.0 - he_est.sum())
 
     # compute HE sampling variance
     V_q = np.empty((K, K))
@@ -420,7 +420,7 @@ def MINQUE(
         H = mat_list[0] * minque_est[0]
         for mat_i, sigma2_i in zip(mat_list[1:], minque_est[1:]):
             H += mat_i * minque_est[i]
-        H += scipy.sparse.eye(y.shape[0], format="csr") * (
+        H += sparse.eye(y.shape[0], format="csr") * (
             1.0 - minque_est.sum()
         )
 
