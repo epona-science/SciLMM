@@ -256,12 +256,12 @@ def HE(
 ):
     # regress all covariates out of y
     CTC = cov.T.dot(cov)
-    y = y - cov.dot(np.linalg.solve(CTC, cov.T.dot(y)))
+    cov_coef = np.linalg.solve(CTC, cov.T.dot(y))
+
+    y = y - cov.dot(cov_coef)
 
     # standardize y
     y /= y.std()
-    # assert np.isclose(y.mean(), 0)
-    # assert np.isclose(y.var(), 1)
 
     if y2 is not None:
         y2 -= cov.dot(np.linalg.solve(CTC, cov.T.dot(y2)))
@@ -353,7 +353,7 @@ def HE(
             V_q[j, i] = V_q[i, j]
     var_he_est = np.linalg.solve(S, np.linalg.solve(S, V_q).T).T
 
-    return he_est, np.sqrt(np.diag(var_he_est))
+    return he_est, np.sqrt(np.diag(var_he_est)), cov_coef, q, S
 
 
 def MINQUE(
