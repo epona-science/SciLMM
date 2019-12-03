@@ -1,25 +1,19 @@
+"""scilmm.IBDCompute
+"""
 import os
 
 import numpy as np
 
-try:
-    from scilmm.FileFormats.FAM import write_fam
-    from scilmm.FileFormats.pedigree import Pedigree
-    from scilmm.Matrices.Numerator import simple_numerator
-    from scilmm.Matrices.SparseMatrixFunctions import save_sparse_csr
-    from scilmm.Simulation.Pedigree import simulate_tree
-    from scilmm.IBDComputeWrapper import ibd_compute_parse_arguments
-except:
-    from .FileFormats.FAM import write_fam
-    from .FileFormats.pedigree import Pedigree
-    from .Matrices.Numerator import simple_numerator
-    from .Matrices.SparseMatrixFunctions import save_sparse_csr
-    from .Simulation.Pedigree import simulate_tree
-    from .IBDComputeWrapper import ibd_compute_parse_arguments
+from scilmm.FileFormats.FAM import write_fam
+from scilmm.FileFormats.pedigree import Pedigree
+from scilmm.Matrices.Numerator import simple_numerator
+from scilmm.Matrices.SparseMatrixFunctions import save_sparse_csr
+from scilmm.Simulation.Pedigree import simulate_tree
+from scilmm.IBDComputeWrapper import ibd_compute_parse_arguments
 
 
 class IBDCompute:
-    def __init__(self, output_folder='.', simulate=False, **kwargs):
+    def __init__(self, output_folder=".", simulate=False, **kwargs):
         """
         Initiating an class IBDCompute class and computing IBD.
         :param output_folder: Path for output files
@@ -40,18 +34,30 @@ class IBDCompute:
         :return: A class Pedigree object, and an entries list.
         """
         if pedigree_file_path is None:
-            assert hasattr(self, 'pedigree'), "In order to compute relationship must first load pedigree either " \
-                                              "through a variable to .compute_relationships or through .load_pedigree "
+            assert hasattr(self, "pedigree"), (
+                "In order to compute relationship must first load pedigree either "
+                "through a variable to .compute_relationships or through .load_pedigree "
+            )
         else:
             self.pedigree = Pedigree(self.kwargs)
             self.pedigree.load_pedigree(pedigree_file_path)
             self.pedigree.compute_all_values()
-        entries_list = np.array(list(self.pedigree.entries_dict.values()))[self.pedigree.interest]
-        np.save(os.path.join(self.output_folder, "entries_ids.npy"), entries_list)
+        entries_list = np.array(list(self.pedigree.entries_dict.values()))[
+            self.pedigree.interest
+        ]
+        np.save(
+            os.path.join(self.output_folder, "entries_ids.npy"), entries_list
+        )
         return self.pedigree, entries_list
 
-    def simulate_relationship(self, sample_size=100000, sparsity_factor=0.001, gen_exp=1.4, init_keep_rate=0.8,
-                              **kwargs):
+    def simulate_relationship(
+        self,
+        sample_size=100000,
+        sparsity_factor=0.001,
+        gen_exp=1.4,
+        init_keep_rate=0.8,
+        **kwargs
+    ):
         """
         Create a simulated example of a pedigree and compute its relationship.
         :param sample_size: Size of the cohort.
@@ -61,15 +67,20 @@ class IBDCompute:
         :return: A class Pedigree object, and an entry list of the simulation.
         """
         assert sample_size > 0, "Sample size should be a positive number"
-        assert (sparsity_factor > 0) and (sparsity_factor < 1), \
-            "Sparsity factor must be within the range (0, 1)"
+        assert (sparsity_factor > 0) and (
+            sparsity_factor < 1
+        ), "Sparsity factor must be within the range (0, 1)"
         assert gen_exp > 0, "gen_exp should be a positive number"
-        assert (init_keep_rate > 0) and (init_keep_rate < 1), \
-            "init_keep_rate must be within the range (0, 1)"
-        rel, sex, _ = simulate_tree(sample_size, sparsity_factor,
-                                    gen_exp, init_keep_rate)
+        assert (init_keep_rate > 0) and (
+            init_keep_rate < 1
+        ), "init_keep_rate must be within the range (0, 1)"
+        rel, sex, _ = simulate_tree(
+            sample_size, sparsity_factor, gen_exp, init_keep_rate
+        )
         write_fam(os.path.join(self.output_folder, "rel.fam"), rel, sex, None)
-        return self.compute_relationships(os.path.join(self.output_folder, "rel.fam"))
+        return self.compute_relationships(
+            os.path.join(self.output_folder, "rel.fam")
+        )
 
     def compute_ibd(self):
         """

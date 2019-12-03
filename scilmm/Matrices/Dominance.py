@@ -3,10 +3,10 @@ from scipy.sparse import csr_matrix, eye
 
 
 def add_root(mat):
-    return csr_matrix((mat.data,
-                       mat.indices + 1,
-                       np.insert(mat.indptr, 0, 0)),
-                      shape=(mat.shape[0] + 1, mat.shape[0] + 1))
+    return csr_matrix(
+        (mat.data, mat.indices + 1, np.insert(mat.indptr, 0, 0)),
+        shape=(mat.shape[0] + 1, mat.shape[0] + 1),
+    )
 
 
 def dominance(rel, ibd):
@@ -17,7 +17,7 @@ def dominance(rel, ibd):
     ancestors_list = np.split(rel.indices, rel.indptr[1:-1])
     ancestors_list_with_root = np.zeros((len(ancestors_list) + 1, 2))
     for i, anc in enumerate(ancestors_list):
-        ancestors_list_with_root[i + 1][0:anc.size] = anc + 1
+        ancestors_list_with_root[i + 1][0 : anc.size] = anc + 1
 
     # get indices etc for the new root ibd
     ibd_with_root = add_root(ibd)
@@ -26,15 +26,18 @@ def dominance(rel, ibd):
     j_parents = ancestors_list_with_root[j_entries]
 
     # compute dominance
-    dominance_values = (ibd_with_root[i_parents[:, 0], j_parents[:, 0]].A1 *
-                        ibd_with_root[i_parents[:, 1], j_parents[:, 1]].A1) + \
-                       (ibd_with_root[i_parents[:, 0], j_parents[:, 1]].A1 *
-                        ibd_with_root[i_parents[:, 1], j_parents[:, 0]].A1)
+    dominance_values = (
+        ibd_with_root[i_parents[:, 0], j_parents[:, 0]].A1
+        * ibd_with_root[i_parents[:, 1], j_parents[:, 1]].A1
+    ) + (
+        ibd_with_root[i_parents[:, 0], j_parents[:, 1]].A1
+        * ibd_with_root[i_parents[:, 1], j_parents[:, 0]].A1
+    )
     dominance_values *= 0.25
-    dom_mat = csr_matrix((dominance_values,
-                          ibd_with_root.indices,
-                          ibd_with_root.indptr),
-                         shape=ibd_with_root.shape)
+    dom_mat = csr_matrix(
+        (dominance_values, ibd_with_root.indices, ibd_with_root.indptr),
+        shape=ibd_with_root.shape,
+    )
 
     # remove root
     dom_mat = dom_mat[1:][:, 1:]

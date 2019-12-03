@@ -15,7 +15,9 @@ def regress_beta_out(y, covariates, fit_intercept):
     """
     regr = linear_model.LinearRegression(fit_intercept=fit_intercept)
     regr.fit(covariates, y)
-    coefs = regr.coef_.tolist() + ([regr.intercept_.tolist()] if fit_intercept else [])
+    coefs = regr.coef_.tolist() + (
+        [regr.intercept_.tolist()] if fit_intercept else []
+    )
     return y - regr.predict(covariates), coefs
 
 
@@ -52,9 +54,11 @@ if __name__ == "__main__":
     epis = pairwise_epistasis(ibd)
     dom = dominance(rel, ibd)
     cov = np.random.randn(50000, 2)
-    y = simulate_phenotype([ibd, epis, dom],
-                           cov,
-                           np.array([0.3, 0.2, 0.1, 0.4]),
-                           np.array([0.01, 0.02, 0.03]),
-                           True)
+    y = simulate_phenotype(
+        [ibd, epis, dom],
+        cov,
+        np.array([0.3, 0.2, 0.1, 0.4]),
+        np.array([0.01, 0.02, 0.03]),
+        True,
+    )
     print(compute_HE(y, cov, [ibd, epis, dom], True))
