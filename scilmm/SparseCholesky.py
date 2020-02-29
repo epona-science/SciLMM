@@ -353,7 +353,7 @@ def HE(
             V_q[j, i] = V_q[i, j]
     var_he_est = np.linalg.solve(S, np.linalg.solve(S, V_q).T).T
 
-    return he_est, np.sqrt(np.diag(var_he_est)), cov_coef, q, S
+    return he_est, np.sqrt(np.diag(var_he_est)), cov_coef, q, S, var_he_est, V_q
 
 
 def MINQUE(

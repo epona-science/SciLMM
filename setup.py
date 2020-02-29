@@ -10,7 +10,11 @@ setup(
     license="GNU",
     packages=find_packages(),
     zip_safe=False,
+    setup_requires=[
+        "numpy>=1.15.1"
+    ],
     install_requires=[
+        "click",
         "nose",
         "numpy>=1.15.1",
         "scipy>=1.1.0",
@@ -23,6 +27,7 @@ setup(
     scripts=[
         "scilmm/IBDCompute.py",
         "scilmm/SciLMM.py",
-        "scilmm/SparseCholesky.py"
+        "scilmm/SparseCholesky.py",
+        "scilmm/bin/sparse_cholesky.py"
     ],
 )
