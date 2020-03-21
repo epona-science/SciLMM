@@ -1,20 +1,10 @@
 import numpy as np
-from scipy.sparse import csr_matrix
+from scipy.sparse import save_npz, load_npz
 
 
 def save_sparse_csr(filename, array):
-    np.savez(
-        filename,
-        data=array.data,
-        indices=array.indices,
-        indptr=array.indptr,
-        shape=array.shape,
-    )
+    save_npz(filename, array)
 
 
 def load_sparse_csr(filename):
-    loader = np.load(filename)
-    return csr_matrix(
-        (loader["data"], loader["indices"], loader["indptr"]),
-        shape=loader["shape"],
-    )
+    return load_npz(filename)

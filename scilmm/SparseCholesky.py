@@ -1,7 +1,9 @@
 """scilmm.SparseCholesky
 """
+import pdb
 import time
 
+from memory_profiler import profile
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
@@ -243,7 +245,6 @@ def REML(
         "covariance std": sigmas_sigmas,
     }
 
-
 def HE(
     mat_list,
     cov,
@@ -277,15 +278,16 @@ def HE(
     # construct S and q, without MQS
     K = len(mat_list)
     n = y.shape[0]
+    q = np.zeros(K)
+    S = np.zeros((K, K))
     if not MQS:
-        q = np.zeros(K)
-        S = np.zeros((K, K))
         for i, mat_i in enumerate(mat_list):
             if sparse.issparse(mat_i):
                 # q[i] = ((mat_i.multiply(y)).T.tocsr().dot(y)).sum() - mat_i.diagonal().dot(y**2)
                 q[i] = y.dot(mat_i.dot(y)) - mat_i.diagonal().dot(y ** 2)
             else:
                 q[i] = ((mat_i * y).T.dot(y)).sum() - np.diag(mat_i).dot(y ** 2)
+
             for j, mat_j in enumerate(mat_list):
                 if j > i:
                     continue
@@ -301,8 +303,6 @@ def HE(
 
     # construct S and q with MQS (it's almost the same thing...)
     else:
-        q = np.zeros(K)
-        S = np.zeros((K, K))
         for i, mat_i in enumerate(mat_list):
             q[i] = y.dot(mat_i.dot(y)) - y.dot(y)  # / float(n-1)**2
             for j, mat_j in enumerate(mat_list):
@@ -328,8 +328,10 @@ def HE(
     # compute HE sampling variance
     V_q = np.empty((K, K))
     for i, mat_i in enumerate(mat_list):
+
         if sim_num is None:
             HAi_min_I = H.dot(mat_i) - H
+
         for j, mat_i in enumerate(mat_list[: i + 1]):
             if sim_num is None:
                 if j == i:
@@ -435,7 +437,6 @@ def MINQUE(
 
     return minque_est, np.sqrt(var_he_est)
 
-
 def run_estimates(
     A, df_phe, df_cov, reml=False, ignore_indices=False, df_phe2=None
 ):
@@ -458,7 +459,9 @@ def run_estimates(
         df_phe = df_phe.loc[has_relatives]
         if df_phe2 is not None:
             df_phe2 = df_phe2.loc[has_relatives]
+
     A.eliminate_zeros()
+
     y = df_phe.values.reshape(-1)
     if df_phe2 is not None:
         y2 = df_phe2.values.reshape(-1)
@@ -469,6 +472,7 @@ def run_estimates(
     # standardize covariates (for numerical stability)
     if type(df_cov) == pd.Series:
         df_cov = df_cov.to_frame()
+
     df_cov["intercept"] = 1
     cov = df_cov.values.copy().astype(np.float)
     cov[:, :-1] -= cov[:, :-1].mean(axis=0)
