@@ -3,6 +3,7 @@
 import os
 
 import numpy as np
+from scipy import sparse
 
 from scilmm.FileFormats.FAM import write_fam
 from scilmm.FileFormats.pedigree import Pedigree
@@ -90,7 +91,7 @@ class IBDCompute:
         _, entries_list = self.compute_relationships()
         ibd, L, D = simple_numerator(self.pedigree.relationship)
         # keep the original L and D because they are useless otherwise
-        save_sparse_csr(os.path.join(self.output_folder, "IBD.npz"), ibd)
+        save_sparse_csr(os.path.join(self.output_folder, "IBD.npz"), sparse.tril(ibd))
         save_sparse_csr(os.path.join(self.output_folder, "L.npz"), L)
         save_sparse_csr(os.path.join(self.output_folder, "D.npz"), D)
         return ibd, L, D
