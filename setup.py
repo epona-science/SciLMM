@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="scilmm",
-    version="0.1.3",
+    version="0.2.0",
     description="Sparse Cholesky factorIzation Linear Mixed model",
     url="https://github.com/TalShor/SciLMM.git",
     author="TalShor, kalkairis",
@@ -26,8 +26,7 @@ setup(
     extras_require={"dev": ["pylint", "black>=19.3b0", "wheel"],},
     scripts=[
         "scilmm/IBDCompute.py",
-        "scilmm/SciLMM.py",
         "scilmm/SparseCholesky.py",
-        "scilmm/bin/sparse_cholesky.py"
+        "scilmm/he_estimator"
     ],
 )
