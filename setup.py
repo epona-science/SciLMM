@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="scilmm",
-    version="0.2.0",
+    version="0.2.1",
     description="Sparse Cholesky factorIzation Linear Mixed model",
     url="https://github.com/TalShor/SciLMM.git",
     author="TalShor, kalkairis",
