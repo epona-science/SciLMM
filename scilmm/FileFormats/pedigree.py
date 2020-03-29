@@ -8,14 +8,13 @@ from scilmm.Matrices.Relationship import organize_rel
 class Pedigree:
     def __init__(
         self,
-        pedigree=None,
+        pedigree,
         delimiter=" ",
         null_value="0",
         female_value="2",
         phenotype_of_interest_value=None,
         check_num_parents=True,
         remove_cycles=True,
-        **kwargs
     ):
         """
         Creates a Pedigree class instance.

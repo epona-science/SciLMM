@@ -1,9 +1,11 @@
 
+import os
 import pdb
 
 import numpy as np
 import pandas as pd
 
+from scilmm.Estimation.HE import HE
 from scilmm.Matrices.SparseMatrixFunctions import load_sparse_csr
 
 class Population:
@@ -12,7 +14,10 @@ class Population:
         entries_path,
         phenotype_path = None,
         covariate_path = None,
-        ibd_path = None
+        ibd_path = None,
+        one_hot_covariates = [],
+        bool_covariates = [],
+        drop_covariates = [],
     ):
         """
         Creates a Population class instance.
@@ -24,12 +29,105 @@ class Population:
             entries list
         """
         self.entries = self._load_entries(entries_path)
-        self.informative_indices = self.entries.to_numpy()
+        self.entry_map = pd.Series(self.entries.index, index=self.entries.values, name='id')
         self.phenotype = self._load_phenotype(phenotype_path)
+        self.covariate_info = None
+        self.one_hot_covariates = one_hot_covariates
+        self.drop_covariates = drop_covariates
+        self.bool_covariates = bool_covariates
         self.covariates = self._load_covariates(covariate_path)
         self.ibd = load_sparse_csr(ibd_path) if ibd_path else None
+        self.he = None
+        self.results = None
 
-        self._prune_uninformative()
+        self.informative_indices = self._informative_indices()
+
+    def __repr__(self):
+        return "Population()"
+
+    def __str__(self):
+        template = '\n'.join([
+            "Population()",
+            "Individuals: {:>10} ({} Informative)",
+            "",
+            "Covariates:",
+            "  {}",
+            "",
+            "Estimates:",
+            "  {}"
+        ])
+
+        return template.format(
+            self.entries.shape[0],
+            self.informative_indices.shape[0],
+            self.print_covariates(),
+            np.array2string(self.he.he_estimates)
+        )
+
+    def write_data(self, output_dir):
+        def path(name):
+            return os.path.join(output_dir, name)
+
+        np.savez(path('informative_indices.npz'), self.informative_indices)
+
+        if self.covariate_info is not None:
+            self.covariate_info.to_csv(path('covariate_info.csv'))
+
+        if self.results is not None:
+            self.results.to_csv(path('results.csv'))
+
+        if self.he is not None:
+            if self.he.covariate_coef is not None:
+                np.savez(path('cov_coef.npz'), self.he.covariate_coef)
+
+            if self.he.he_estimates is not None:
+                np.savez(path('he_estimates.npz'), self.he.he_estimates)
+
+            if self.he.sampling_variance is not None:
+                np.savez(path('sampling_variance.npz'), self.he.sampling_variance)
+
+    def print_covariates(self):
+        if self.covariate_info is None: return "<No Covariates>"
+        return self.covariate_info.to_string()
+
+    def estimate_heritability(self, test_set_size = 0.05):
+        train_set, test_set = self._train_test_split(test_set_size)
+
+        ibd, phenotype, covariates = self._prepare_dataset(self.informative_indices)
+
+        self.he = HE(phenotype, covariates, [ibd], train_set)
+        self.he.estimate(compute_stderr=False)
+
+        if self.covariate_info is not None:
+            self.covariate_info['coef'] = self.he.covariate_coef
+
+        predictions = [
+            self.informative_indices,
+            self.he.normalized_phenotypes(),
+            self.he.estimated_breeding_values()
+        ]
+
+        self.results = pd.DataFrame(predictions).T
+        self.results.columns = ['idx', 'norm_phenotype', 'ebv']
+        self.results = self.results.set_index('idx').join(self.entry_map, how='inner')
+        self.results['train'] = True
+        self.results.loc[self.informative_indices[test_set], 'train'] = False
+
+    def _train_test_split(self, test_set_size = 0.05):
+        """
+        Splits the data into a training and test set based upon
+        given proportion
+
+        :param test_set_size: Proportion of individuals to use in test set
+
+        :return train_set, test_set:
+        """
+        indices = np.indices(self.informative_indices.shape).flatten()
+
+        keep = int(round((1 - test_set_size) * indices.shape[0]))
+
+        np.random.shuffle(indices)
+        return indices[:keep], indices[keep:]
 
     def _load_entries(self, entries_path):
         """
@@ -82,9 +180,28 @@ class Population:
             low_memory=False
         )
 
-        covariates = covariates.select_dtypes(include=['number']).astype(float)
-        covariates = (covariates - covariates.mean()) / covariates.std()
+        covariates = covariates.drop(self.drop_covariates, axis=1)
+
         covariates['intercept'] = 1
+        self.bool_covariates.append('intercept')
+
+        float_covariates = list(
+            set(covariates.columns) - set(self.bool_covariates + self.one_hot_covariates)
+        )
+
+        covariates = pd.get_dummies(covariates, columns=self.one_hot_covariates, drop_first=True)
+
+        self.covariate_info = pd.DataFrame(
+            index=covariates.columns, columns=['mean', 'stddev', 'coef']
+        )
+        
+        self.covariate_info['mean'] = covariates[float_covariates].mean()
+        self.covariate_info['stddev'] = covariates[float_covariates].std()
+
+        for col in float_covariates:
+            covariates[col] = (covariates[col] - covariates[col].mean()) / covariates[col].std()
+
+        covariates = covariates.astype(float)
 
         return covariates.join(self.entries, how='inner').set_index('idx')
 
@@ -100,33 +217,44 @@ class Population:
         ibd = load_sparse_csr(ibd_path)
         return ibd[self.entries.to_numpy()][:, self.entries.to_numpy()]
 
-    def _prune_uninformative(self):
+    def _get_ibd_informative(self):
         """
-        Prunes uninformative individuals
+        Returns individuals from IBD array that will be informative
         """
-        indices = set(self.entries.to_numpy())
+        if self.ibd is None: pd.Series()
+
+        has_rel = np.asarray(self.ibd.sum(axis=1))[:, 0] > 1
+        return np.flatnonzero(has_rel)
+
+    def _informative_indices(self):
+        informative = self._get_ibd_informative()
+        
+        if self.phenotype is not None:
+            informative = self.phenotype.index.intersection(informative).to_numpy()
+        
+        if self.covariates is not None:
+            informative = self.covariates.index.intersection(informative).to_numpy()
+
+        return informative
+
+    def _prepare_dataset(self, indices):
+        """
+        Transforms datasets for use in estimation
+
+        :param indices: The indices to keep for the dataset. You should
+        only remove individuals that cannot be used for training for testing.
+        """
+        ibd = None
+        phenotype = None
+        covariates = None
 
         if self.ibd is not None:
-            indices = indices & set(self.ibd.indices)
+            ibd = self.ibd[indices][:, indices]
 
         if self.phenotype is not None:
-            indices = indices & set(self.phenotype.index.to_numpy())
+            phenotype = self.phenotype.loc[indices].to_numpy().flatten()
 
         if self.covariates is not None:
-            indices = indices & set(self.covariates.index.to_numpy())
+            covariates = self.covariates.loc[indices].to_numpy()
 
-        indices = list(indices)
-
-        if self.ibd is not None:
-            self.ibd = self.ibd[indices][:,indices]
-            has_rel = np.asarray(self.ibd.sum(axis=1))[:, 0] > 1
-            self.ibd = self.ibd[has_rel][:, has_rel]
-            indices = np.asarray(indices)[has_rel]
-
-        if self.phenotype is not None:
-            self.phenotype = self.phenotype.loc[indices].to_numpy().flatten()
-
-        if self.covariates is not None:
-            self.covariates = self.covariates.loc[indices].to_numpy()
-
-        self.informative_indices = indices
+        return ibd, phenotype, covariates
